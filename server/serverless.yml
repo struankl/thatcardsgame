@@ -1,0 +1,236 @@
+service:
+  name: cah
+
+#app: cah
+#tenant: struankl2
+plugins:
+  #  - serverless-scriptable-plugin
+  - serverless-webpack
+  - serverless-offline
+
+#layers:
+#  nodeModules:
+#    path: layers/nodeModules
+#    compatibleRuntimes:
+#    - nodejs12.x
+package:
+  individually: true
+  exclude:
+    #    - '*'
+    - .serverless/**
+    - config/**
+    #    - src/**
+    - '**/*.test.*'
+    - node_modules/**
+    - .idea/**
+    - layers/**
+#  include:
+#    - src/utils/**
+#  excludeDevDependencies: false
+resources:
+  Resources:
+    NextRoundQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: '${self:service}-${self:provider.stage}-next-round-queue'
+    NotificationsQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: '${self:service}-${self:provider.stage}-notifications-queue'
+custom:
+#  authorizer:
+#    arn: ${file(./config/${self:provider.stage}.yml):authorizer.arn}
+#    identitySource: method.request.header.Authorization
+  NOTIFY_TOPIC: '${self:service}-${self:provider.stage}-notify-players'
+  websocketsApiName: cah-websockets-api
+  webpack:
+    includeModules:
+      forceExclude:
+        - aws-sdk
+    keepOutputDirectory: true
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'eu-west-2'}
+  memorySize: 128
+  profile: cah
+  #  layers:
+  #    - {Ref: NodeModulesLambdaLayer}
+  #    - arn:aws:lambda:eu-west-2:607163588344:layer:aws-sdk:1
+  iamManagedPolicies:
+    - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+    #    - 'arn:aws:iam::aws:policy/AmazonRDSFullAccess'
+#    - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
+    - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+    - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+  environment:
+    DB_HOST: ${file(./config/${self:provider.stage}.yml):database.host}
+    DB_PORT: ${file(./config/${self:provider.stage}.yml):database.port}
+    DB_USERNAME: ${file(./config/${self:provider.stage}.yml):database.username}
+    DB_PASSWORD: ${file(./config/${self:provider.stage}.yml):database.password}
+    DB_DATABASE: ${file(./config/${self:provider.stage}.yml):database.database}
+    DB_SCHEMA: ${file(./config/${self:provider.stage}.yml):database.schema}
+#  websocketsApiName: amma-websockets-api
+
+functions:
+  createGame:
+    handler: src/createGame/index.handler
+    events:
+      - http:
+          method: post
+          path: game
+          cors:
+            origin: '*'
+          integration: lambda
+  createPlayer:
+    handler: src/createPlayer/index.handler
+    events:
+      - http:
+          method: post
+          path: player
+          cors:
+            origin: '*'
+          integration: lambda
+#          request:
+#            template:
+#              application/json: ${file(./src/createPlayer/requestTemplate)}
+  joinGame:
+    handler: src/joinGame/index.handler
+    events:
+      - http:
+          method: post
+          path: join
+          cors:
+            origin: '*'
+          integration: lambda
+  nextRound:
+    handler: src/nextRound/nextRound.handler
+    events:
+      - http:
+          method: post
+          path: round
+          cors:
+            origin: '*'
+          integration: lambda
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - NextRoundQueue
+              - Arn
+    environment:
+      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+  playCards:
+    handler: src/playCards/playCards.handler
+    events:
+      - http:
+          method: post
+          path: play
+          cors:
+            origin: '*'
+          integration: lambda
+    environment:
+      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+  scoreRound:
+    handler: src/scoreRound/scoreRound.handler
+    events:
+      - http:
+          method: post
+          path: score
+          cors:
+            origin: '*'
+          integration: lambda
+    environment:
+      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+      NEXT_ROUND_QUEUE:
+        Fn::Join:
+          - ""
+          - - 'https://sqs.'
+            - '${self:provider.region}'
+            - '.amazonaws.com/'
+            - Ref: "AWS::AccountId"
+            - '/'
+            - Fn::GetAtt:
+              - NextRoundQueue
+              - QueueName
+  endRound:
+    handler: src/endRound/endRound.handler
+    events:
+      - http:
+          method: post
+          path: endround
+          cors:
+            origin: '*'
+          integration: lambda
+    environment:
+      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+      NOTIFICATIONS_QUEUE:
+        Fn::Join:
+          - ""
+          - - 'https://sqs.'
+            - '${self:provider.region}'
+            - '.amazonaws.com/'
+            - Ref: "AWS::AccountId"
+            - '/'
+            - Fn::GetAtt:
+                - NotificationsQueue
+                - QueueName
+  cardSets:
+    handler: src/cardSets/index.handler
+    events:
+      - http:
+          method: get
+          path: cardsets
+          cors:
+            origin: '*'
+          integration: lambda
+  getGameNames:
+    handler: src/getGameNames/index.handler
+    events:
+      - http:
+          method: get
+          path: gamenames
+          cors:
+            origin: '*'
+          integration: lambda
+  websocketConnect:
+    handler: src/websocket/connect.connect
+    events:
+      - websocket:
+          route: $connect
+    package:
+      include:
+        - src/websocket/websocket.js
+
+  websocketDisconnect:
+    handler: src/websocket/websocket.disconnect
+    events:
+      - websocket:
+          route: $disconnect
+    environment:
+      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+    package:
+      include:
+        - src/websocket/websocket.js
+
+  websocketSubscribe:
+    handler: src/websocket/websocket.subscribe
+    events:
+      - websocket: $default
+    package:
+      include:
+        - src/websocket/websocket.js
+    environment:
+      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+  websocketNotify:
+    handler: src/websocket/notify.handler
+    events:
+      - sns: ${self:custom.NOTIFY_TOPIC}
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - NotificationsQueue
+              - Arn
+    package:
+      include:
+        - src/websocket/notify.js
