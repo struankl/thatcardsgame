@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { selectors } from '../../store';
 import { createUseStyles, useTheme } from 'react-jss';
 import { ReactComponent as Cards } from '../../icons/cards.svg';
-import { ReactComponent as Crown } from '../../icons/crown1.svg';
+import { ReactComponent as Crown } from '../../icons/crown.svg';
 import clsx from 'clsx';
 
 const useStyles = createUseStyles({

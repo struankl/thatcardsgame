@@ -11,7 +11,7 @@ import {
 import { getCardsetsService, getGameNames } from '../../services/game-services';
 import { createUseStyles, useTheme } from 'react-jss';
 import { ReactComponent as Cards } from '../../icons/cards.svg';
-import { ReactComponent as Crown } from '../../icons/crown1.svg';
+import { ReactComponent as Crown } from '../../icons/crown.svg';
 
 interface ICardSet {
   name: string;
@@ -227,6 +227,10 @@ export const NewGame: React.FC<{}> = () => {
           <a href="https://creativecommons.org/licenses/by/3.0/us/legalcode">
             Creative Commons CCBY Attribution licence
           </a>
+        </span>
+        <span>
+          If you believe there are any infringements on any rights please contact{' '}
+          <a href="mailto:admin@thatcardsgame.com">admin@thatcardsgame.com</a>
         </span>
       </div>
     </div>

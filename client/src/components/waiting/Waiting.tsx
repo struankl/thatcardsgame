@@ -9,6 +9,15 @@ const useStyles = createUseStyles({
     display: 'flex',
     flexDirection: 'column',
     margin: 'auto',
+    '& span, & div': {
+      margin: 5,
+    },
+    '& button': {
+      marginLeft: 5
+    },
+    '& a': {
+      color: 'white'
+    }
   },
   'copy-area': {
     position: 'absolute',
@@ -52,6 +61,11 @@ export const Waiting: React.FC<{}> = () => {
         {window.location.href}?gameId={gameId}
         <button onClick={onCopy}>Copy</button>
       </span>
+      <span>
+        Send this link to friends and family (or even enemies we don't care) to
+        join the game. At present you can't just play against rando's
+      </span>
+      <span>Please send any comments to <a href="mailto:admin@thatcardsgame.com">admin@thatcardsgame.com</a></span>
       <textarea
         className={classes['copy-area']}
         value={`${window.location.href}?gameId=${gameId}`}
