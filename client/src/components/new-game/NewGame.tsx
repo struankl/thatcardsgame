@@ -8,17 +8,16 @@ import {
   setGameId,
   setPlayerId,
 } from '../../store/local-state/localActions';
-import { getCardsetsService, getGameNames } from '../../services/game-services';
+import {
+  getCardsetsService,
+  getGameNames,
+  ICardSet,
+  IRule,
+} from '../../services/game-services';
 import { createUseStyles, useTheme } from 'react-jss';
 import { ReactComponent as Cards } from '../../icons/cards.svg';
 import { ReactComponent as Crown } from '../../icons/crown.svg';
-
-interface ICardSet {
-  name: string;
-  id: number;
-  weight: number;
-  selected: boolean;
-}
+import clsx from 'clsx';
 
 const useStyles = createUseStyles({
   cardsets: {
@@ -56,7 +55,40 @@ const useStyles = createUseStyles({
       color: 'white',
     },
   },
+  tab: {
+    padding: [[10, 5]],
+    margin: 5,
+    cursor: 'pointer',
+    '&.selected': {
+      borderBottom: '2px solid white',
+    },
+  },
+  'rules-panel': {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'
+  },
+  rule: {
+    maxWidth: '250px'
+  },
+  'rule-name': {
+    display: 'inline-block',
+    textDecoration: 'underline',
+    marginBottom: 5
+  },
+  'rule-body': {
+    display: 'flex',
+    alignItems: 'center'
+  },
+  'rule-description': {
+    display: 'inline-block',
+    textAlign: 'left'
+  }
 });
+
+enum TABS {
+  STOCK_CARDS = 'Stock Cards',
+  RULES = 'House Rules',
+}
 
 export const NewGame: React.FC<{}> = () => {
   const theme = useTheme();
@@ -64,10 +96,13 @@ export const NewGame: React.FC<{}> = () => {
   const dispatch = useDispatch();
   const [buttonClicked, setButtonClicked] = useState(false);
   const [cardsets, setCardsets] = useState<ICardSet[]>([]);
+  const [rules, setRules] = useState<IRule[]>([]);
   const [name, setName] = useState('');
   const [gameNames, setGameNames] = useState<{ id: string; name: string }[]>(
     []
   );
+
+  const [selectedTab, setSelectedTab] = useState(TABS.STOCK_CARDS);
 
   const games = useMemo<IGame[]>(
     () =>
@@ -76,9 +111,10 @@ export const NewGame: React.FC<{}> = () => {
   );
 
   useEffect(() => {
-    getCardsetsService().then((response) =>
-      setCardsets(response.map((r) => ({ ...r, selected: false })))
-    );
+    getCardsetsService().then((response) => {
+      setCardsets(response.cardsets.map((r) => ({ ...r, selected: false })));
+      setRules(response.rules.map((r) => ({ ...r, selected: false })));
+    });
   }, []);
 
   useEffect(() => {
@@ -100,10 +136,13 @@ export const NewGame: React.FC<{}> = () => {
           cardsets: cardsets
             .filter(({ selected }) => selected)
             .map(({ id }) => id),
+          rules: rules
+              .filter(({selected}) => selected)
+              .map(({id}) => id)
         })
       );
     },
-    [dispatch, cardsets, name]
+    [dispatch, cardsets, name, rules]
   );
 
   const onChooseGame = useCallback(
@@ -125,6 +164,13 @@ export const NewGame: React.FC<{}> = () => {
     setCardsets((current) =>
       current.map((cs) =>
         cs.id === id ? { ...cs, selected: !cs.selected } : cs
+      )
+    );
+
+  const selectRule = (id: number) =>
+    setRules((current) =>
+      current.map((rule) =>
+        rule.id === id ? { ...rule, selected: !rule.selected } : rule
       )
     );
 
@@ -160,20 +206,50 @@ export const NewGame: React.FC<{}> = () => {
       )}
       {(games.length < 1 || createNew) && (
         <form onSubmit={onCreateGame}>
-          <h1>Select cardsets for this game</h1>
-          <button onClick={onSelectAll}>select all</button>
-          <div className={classes.cardsets}>
-            {cardsets.map((cs) => (
-              <label key={cs.id}>
-                <span className={classes['cardset-name']}>{cs.name}</span>
-                <input
-                  type="checkbox"
-                  checked={cs.selected}
-                  onChange={() => selectCardSet(cs.id)}
-                />
-              </label>
+          <div>
+            {Object.values(TABS).map((tab) => (
+              <span
+                className={clsx(classes.tab, { selected: tab === selectedTab })}
+                onClick={() => setSelectedTab(tab)}
+              >
+                {tab}
+              </span>
             ))}
           </div>
+          {selectedTab === TABS.STOCK_CARDS && (
+            <div>
+              <h1>Select cardsets for this game</h1>
+              <button type="button" onClick={onSelectAll}>
+                select all
+              </button>
+              <div className={classes.cardsets}>
+                {cardsets.map((cs) => (
+                  <label key={cs.id}>
+                    <span className={classes['cardset-name']}>{cs.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={cs.selected}
+                      onChange={() => selectCardSet(cs.id)}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {selectedTab === TABS.RULES && (
+              <div>
+                <h1>Select house rules for this game</h1>
+                <div className={classes['rules-panel']}>
+                  {rules.map(r => <label key={r.id} className={classes.rule}>
+                    <span className={classes['rule-name']}>{r.name}</span>
+                    <div className={classes['rule-body']}>
+                      <span className={classes['rule-description']}>{r.description}</span>
+                      <input type="checkbox" checked={r.selected} onChange={() => selectRule(r.id)}/>
+                    </div>
+                  </label>)}
+                </div>
+              </div>
+                )}
           <div>
             <label>
               Game Name:
@@ -229,7 +305,8 @@ export const NewGame: React.FC<{}> = () => {
           </a>
         </span>
         <span>
-          If you believe there are any infringements on any rights please contact{' '}
+          If you believe there are any infringements on any rights please
+          contact{' '}
           <a href="mailto:admin@thatcardsgame.com">admin@thatcardsgame.com</a>
         </span>
       </div>

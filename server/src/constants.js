@@ -8,3 +8,14 @@ export const GAME_STATE = {
 
 export const NUMBER_OF_CARDS = 10;
 
+export const RULES = {
+  RANDO_CARDARIAN: 1,
+  MERITOCRACY: 2,
+};
+
+export const PLAYERS = {
+  RANDO: {
+    id: '-1'
+  }
+};
+

@@ -29,19 +29,17 @@ package:
 #  excludeDevDependencies: false
 resources:
   Resources:
-    NextRoundQueue:
+    DelayedNotificationQueue:
       Type: "AWS::SQS::Queue"
       Properties:
-        QueueName: '${self:service}-${self:provider.stage}-next-round-queue'
-    NotificationsQueue:
-      Type: "AWS::SQS::Queue"
-      Properties:
-        QueueName: '${self:service}-${self:provider.stage}-notifications-queue'
+        QueueName: '${self:service}-${self:provider.stage}-delayed-notification-queue'
 custom:
 #  authorizer:
 #    arn: ${file(./config/${self:provider.stage}.yml):authorizer.arn}
 #    identitySource: method.request.header.Authorization
   NOTIFY_TOPIC: '${self:service}-${self:provider.stage}-notify-players'
+  NEXT_ROUND_TOPIC: '${self:service}-${self:provider.stage}-next-round'
+
   websocketsApiName: cah-websockets-api
   webpack:
     includeModules:
@@ -71,6 +69,27 @@ provider:
     DB_PASSWORD: ${file(./config/${self:provider.stage}.yml):database.password}
     DB_DATABASE: ${file(./config/${self:provider.stage}.yml):database.database}
     DB_SCHEMA: ${file(./config/${self:provider.stage}.yml):database.schema}
+    DELAYED_NOTIFICATION_QUEUE:
+      Fn::Join:
+        - ""
+        - - 'https://sqs.${self:provider.region}.amazonaws.com/'
+          - Ref: "AWS::AccountId"
+          - '/'
+          - Fn::GetAtt:
+              - DelayedNotificationQueue
+              - QueueName
+    NOTIFY_TOPIC:
+      Fn::Join:
+        - ""
+        - - 'arn:aws:sns:${self:provider.region}:'
+          - 'Ref': 'AWS::AccountId'
+          - ':${self:custom.NOTIFY_TOPIC}'
+    NEXT_ROUND_TOPIC:
+      Fn::Join:
+        - ""
+        - - 'arn:aws:sns:${self:provider.region}:'
+          - 'Ref': 'AWS::AccountId'
+          - ':${self:custom.NEXT_ROUND_TOPIC}'
 #  websocketsApiName: amma-websockets-api
 
 functions:
@@ -113,13 +132,8 @@ functions:
           cors:
             origin: '*'
           integration: lambda
-      - sqs:
-          arn:
-            Fn::GetAtt:
-              - NextRoundQueue
-              - Arn
-    environment:
-      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
+      - sns: ${self:custom.NEXT_ROUND_TOPIC}
+
   playCards:
     handler: src/playCards/playCards.handler
     events:
@@ -129,8 +143,6 @@ functions:
           cors:
             origin: '*'
           integration: lambda
-    environment:
-      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
   scoreRound:
     handler: src/scoreRound/scoreRound.handler
     events:
@@ -140,19 +152,6 @@ functions:
           cors:
             origin: '*'
           integration: lambda
-    environment:
-      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
-      NEXT_ROUND_QUEUE:
-        Fn::Join:
-          - ""
-          - - 'https://sqs.'
-            - '${self:provider.region}'
-            - '.amazonaws.com/'
-            - Ref: "AWS::AccountId"
-            - '/'
-            - Fn::GetAtt:
-              - NextRoundQueue
-              - QueueName
   endRound:
     handler: src/endRound/endRound.handler
     events:
@@ -162,19 +161,6 @@ functions:
           cors:
             origin: '*'
           integration: lambda
-    environment:
-      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
-      NOTIFICATIONS_QUEUE:
-        Fn::Join:
-          - ""
-          - - 'https://sqs.'
-            - '${self:provider.region}'
-            - '.amazonaws.com/'
-            - Ref: "AWS::AccountId"
-            - '/'
-            - Fn::GetAtt:
-                - NotificationsQueue
-                - QueueName
   cardSets:
     handler: src/cardSets/index.handler
     events:
@@ -193,6 +179,14 @@ functions:
           cors:
             origin: '*'
           integration: lambda
+  sqsToSns:
+    handler: src/queueToSns/index.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - DelayedNotificationQueue
+              - Arn
   websocketConnect:
     handler: src/websocket/connect.connect
     events:
@@ -207,8 +201,6 @@ functions:
     events:
       - websocket:
           route: $disconnect
-    environment:
-      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
     package:
       include:
         - src/websocket/websocket.js
@@ -220,17 +212,21 @@ functions:
     package:
       include:
         - src/websocket/websocket.js
-    environment:
-      NOTIFY_TOPIC: { "Fn::Join": ["", ["arn:aws:sns:${self:provider.region}:", { "Ref": "AWS::AccountId" }, ":${self:custom.NOTIFY_TOPIC}" ] ]  }
   websocketNotify:
     handler: src/websocket/notify.handler
     events:
       - sns: ${self:custom.NOTIFY_TOPIC}
-      - sqs:
-          arn:
-            Fn::GetAtt:
-              - NotificationsQueue
-              - Arn
     package:
       include:
         - src/websocket/notify.js
+    environment:
+      WEBSOCKET_ENDPOINT:
+        Fn::Join:
+          - ''
+          - - Ref: 'WebsocketsApi'
+            - '.execute-api.'
+            - ${self:provider.region}
+            - '.'
+            - Ref: 'AWS::URLSuffix'
+            - '/'
+            - ${self:provider.stage}

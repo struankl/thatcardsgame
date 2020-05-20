@@ -51,6 +51,8 @@ const useStyles = createUseStyles({
     display: 'flex',
     flexDirection: 'column',
     margin: [[5, 15]],
+    width: 150,
+    maxWidth: 'calc(50vw - 42px)',
   },
   hand: {
     display: 'flex',

@@ -37,12 +37,6 @@ export interface IGameState {
   roundEndTime?: string;
 }
 
-export interface ICardset {
-  id: number;
-  name: string;
-  weight: number;
-}
-
 const initialState: IGameState = {
   gameState: 'waiting',
   players: [],

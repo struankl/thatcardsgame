@@ -18,13 +18,16 @@ export const confirmCards = () => ({
 
 export const createGame = ({
   cardsets,
+  rules,
   name,
 }: {
   cardsets: number[];
+  rules: number[];
   name: string;
 }) => ({
   type: GameActions.CREATE_GAME as typeof GameActions.CREATE_GAME,
   cardsets,
+  rules,
   name,
 });
 

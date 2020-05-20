@@ -69,8 +69,9 @@ export const Waiting: React.FC<{}> = () => {
       <textarea
         className={classes['copy-area']}
         value={`${window.location.href}?gameId=${gameId}`}
+        readOnly
       />
-      {players.length < 3 && <div>Waiting for enough players to join</div>}
+      {players.length < 3 && <div>Waiting for enough players to join - need at least 3 players</div>}
       {players.length > 2 && (
         <>
           <div>Start the game once everyone has joined</div>

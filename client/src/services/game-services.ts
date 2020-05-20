@@ -1,5 +1,18 @@
 import { SERVER_URL } from '../constants';
-import { ICardset } from '../store/game-state/gameStateReducers';
+
+export interface ICardSet {
+  name: string;
+  id: number;
+  weight: number;
+  selected: boolean;
+}
+
+export interface IRule {
+  id: number;
+  name: string;
+  description: string;
+  selected: boolean;
+}
 
 interface IStartGameResponse {
   uuid: string;
@@ -8,13 +21,15 @@ interface IStartGameResponse {
 export const createGameService = async ({
   name,
   cardsets,
+    rules
 }: {
   name: string;
   cardsets: number[];
+  rules: number[];
 }): Promise<IStartGameResponse> => {
   const response = await fetch(`${SERVER_URL}/game`, {
     method: 'POST',
-    body: JSON.stringify({ name, cardsets }),
+    body: JSON.stringify({ name, cardsets, rules }),
     headers: {
       'Content-Type': 'application/json',
     },
@@ -116,7 +131,7 @@ export const sendEndRoundService = async ({
   });
 };
 
-export const getCardsetsService = async (): Promise<ICardset[]> => {
+export const getCardsetsService = async (): Promise<{cardsets: ICardSet[], rules: IRule[]}> => {
   const response = await fetch(`${SERVER_URL}/cardsets`, {
     method: 'GET',
     headers: {

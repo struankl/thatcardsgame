@@ -28,6 +28,7 @@ const useStyles = createUseStyles({
     flexGrow: 1,
     textAlign: 'left',
     whiteSpace: 'nowrap',
+    overflow: 'hidden'
   },
   'cards-icon': {
     fill: 'white',

@@ -104,4 +104,23 @@ values
 (2400, 2626),
 (2400, 2627);
 
+create table house_rules
+(
+    id int primary key,
+    name varchar(250),
+    description varchar
+);
+
+alter table game add column rules int[] default '{}'::int[]
+
+insert into house_rules (id, name, description) values
+(1, 'Rando Cardrissian', 'A virtual player known as ''Rando Cardrissian'', plays a randomn card in each round. If he wins the game, all players go home in a state of everlasting shame.');
+
+insert into house_rules (id, name, description) VALUES
+(2, 'Meritocracy', ' Instead of passing clockwise, the role of Card Czar passes to the winner of the previous round.');
+
+insert into player (id, name) values (-1, 'Rando Cardrissian');
+
+alter table game
+add column last_round_start timestamp default now();
 --------------------------------------------

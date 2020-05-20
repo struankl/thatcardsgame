@@ -18,15 +18,18 @@ export const handler = async (event) => {
     params: [gameId,playerId, event.body.cards]
   });
 
-  const [{played, playing}] = await executeQuery({
+  const playersNotYetPlayed = await executeQuery({
     query: `
-        select played.count as played, players.count as playing
-        from (select count(*) as count from round where game = $1) played,
-             (select count(*) as count from game_player where game = $1) players`,
+        select w.player from websockets w, game g
+        where w.game = $1
+          and g.id = w.game
+          and w.player != g.czar
+          and not exists(select r.player from round r where r.game = w.game and r.player = w.player)
+          `,
     params: [gameId]
   });
 
-  if (parseInt(played) === parseInt(playing) - 1) {
+  if (playersNotYetPlayed.length < 1) {
     await executeQuery({
       query: 'update game set game_state = $1 where id = $2',
       params: [GAME_STATE.JUDGING,gameId]

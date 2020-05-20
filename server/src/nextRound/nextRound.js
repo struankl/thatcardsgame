@@ -1,14 +1,14 @@
-import {executeQuery} from '../utils/database';
-import {sendNotification} from '../utils/notification';
-import {dealCards} from '../utils/dealHand';
-import {GAME_STATE, NUMBER_OF_CARDS} from '../constants';
+import { executeQuery } from "../utils/database";
+import { sendNotification } from "../utils/notification";
+import { dealCards } from "../utils/dealHand";
+import { GAME_STATE, NUMBER_OF_CARDS, PLAYERS, RULES } from "../constants";
 
 const doNextRound = async (event, redealOnly = false) => {
-  const [{gameId}] = await executeQuery({
-    query: `select g.id as "gameId"
+  const [{ gameId, rules }] = await executeQuery({
+    query: `select g.id as "gameId", g.rules
             from game g
             where g.uuid = $1`,
-    params: [event.body.game]
+    params: [event.body.game],
   });
 
   let newCardResult = [];
@@ -27,18 +27,19 @@ const doNextRound = async (event, redealOnly = false) => {
                    order by random()
                    limit 1)
               returning card;
-      `, params: [gameId]
+      `,
+      params: [gameId],
     });
 
     if (newCardResult.length < 1) {
       await executeQuery({
-        query: 'delete from black_cards_played where game = $1',
-        params: [gameId]
+        query: "delete from black_cards_played where game = $1",
+        params: [gameId],
       });
     }
   }
 
-  const [{card: newCard}] = newCardResult;
+  const [{ card: newCard }] = newCardResult;
 
   const players = await executeQuery({
     query: `with czar as (select g.czar from game g where g.id = $1)
@@ -56,20 +57,39 @@ const doNextRound = async (event, redealOnly = false) => {
               left outer join websockets w on p.id = w.player 
               where gp.game = $1
                 and p.id = gp.player
-              order by answer`, params: [gameId]
+              order by answer`,
+    params: [gameId],
   });
 
   let nextCzarId = null;
+  let lastRoundPlayedCards = null;
   if (!redealOnly) {
-    let czarIndex = players.findIndex(p => p.isCzar);
-    if (!czarIndex && czarIndex !== 0) {
-      czarIndex = -1;
-    }
+    lastRoundPlayedCards = await executeQuery({
+      query: `
+            select r.player, r.cards, r.winner
+            from round r
+            where r.game = $1`,
+      params: [gameId],
+    });
 
-    console.log('selecting next czar from: ', JSON.stringify([...players, ...players].slice(czarIndex + 1).filter(p => p.isActive)));
-    const nextCzar = [...players, ...players].slice(czarIndex + 1).filter(p => p.isActive)[0];
-    console.log('next czar:', czarIndex, JSON.stringify(nextCzar));
-    nextCzarId = nextCzar ? nextCzar.player : players[(czarIndex + 1) % players.length].player;
+    if (rules.includes(RULES.MERITOCRACY)) {
+      const lastWinner = lastRoundPlayedCards.find(({ winner }) => winner);
+      if (lastWinner && lastWinner.player !== PLAYERS.RANDO.id) {
+        nextCzarId = lastWinner.player;
+      }
+      console.log('Meritocracy - next czar:', nextCzarId);
+    }
+    if (!rules.includes(RULES.MERITOCRACY) || !nextCzarId) {
+      const activePlayers = players.filter(p => p.isActive);
+      let czarIndex = activePlayers.findIndex((p) => p.isCzar);
+      if (!czarIndex && czarIndex !== 0) {
+        czarIndex = -1;
+      }
+      const nextCzar = activePlayers[(czarIndex + 1) % activePlayers.length]
+      console.log("next czar:", czarIndex, JSON.stringify(nextCzar));
+      nextCzarId = nextCzar.player;
+      console.log('Not Meritocracy - next czar:', nextCzarId);
+    }
   }
 
   await executeQuery({
@@ -78,45 +98,81 @@ const doNextRound = async (event, redealOnly = false) => {
                 game_state         = $2,
                 round              = round + $4,
                 czar               = coalesce($5, czar),
-                round_end          = null
+                round_end          = null,
+                last_round_start   = now()
             where id = $3
             returning round`,
-    params: [newCard, GAME_STATE.PLAYING, gameId, redealOnly ? 0 : 1, nextCzarId]
+    params: [
+      newCard,
+      GAME_STATE.PLAYING,
+      gameId,
+      redealOnly ? 0 : 1,
+      nextCzarId,
+    ],
   });
 
   if (!redealOnly) {
-    const lastRoundPlayedCards = await executeQuery({
-      query: `
-            select r.player, r.cards
-            from round r
-            where r.game = $1`,
-      params: [gameId]
-    });
-    const {cards: newCards} = await dealCards(gameId, lastRoundPlayedCards.reduce((acc, {cards}) => acc + cards.length, 0));
-    await Promise.all(players.map(async ({player, cards}, index) => {
-      const playedCards = (lastRoundPlayedCards.find(lrpc => lrpc.player === player) || {cards: []}).cards;
-      const playersCards = [...cards.filter(card => !playedCards.includes(card))];
-      playersCards.push(...newCards.splice(0, NUMBER_OF_CARDS - playersCards.length).map(({card}) => card));
+    const { cards: newCards } = await dealCards(
+      gameId,
+      lastRoundPlayedCards.reduce((acc, { cards }) => acc + cards.length, 0)
+    );
+    await Promise.all(
+      players.map(async ({ player, cards }, index) => {
+        const playedCards = (
+          lastRoundPlayedCards.find((lrpc) => lrpc.player === player) || {
+            cards: [],
+          }
+        ).cards;
+        const playersCards = [
+          ...cards.filter((card) => !playedCards.includes(card)),
+        ];
+        playersCards.push(
+          ...newCards
+            .splice(0, NUMBER_OF_CARDS - playersCards.length)
+            .map(({ card }) => card)
+        );
 
-      await executeQuery({
-        query: 'update game_player set cards = $1 where game = $2 and player = $3',
-        params: [playersCards, gameId, player]
-      });
-
-    }));
+        await executeQuery({
+          query:
+            "update game_player set cards = $1 where game = $2 and player = $3",
+          params: [playersCards, gameId, player],
+        });
+      })
+    );
   }
-  await executeQuery({query: 'delete from round where game = $1', params: [gameId]});
+  await executeQuery({
+    query: "delete from round where game = $1",
+    params: [gameId],
+  });
 
-  await sendNotification({message: {game: event.body.game}});
+  if (rules.includes(RULES.RANDO_CARDARIAN)) {
+    const [{ pick }] = await executeQuery({
+      query: `select bc.pick from black_cards bc, game g
+              where g.id = $1
+              and bc.id = g.current_black_card`,
+      params: [gameId],
+    });
+    const { cards: randosCards } = await dealCards(gameId, pick);
+    await executeQuery({
+      query: `insert into round (game, player, cards) values ($1, $2, $3)`,
+      params: [gameId, PLAYERS.RANDO.id, randosCards.map(({ card }) => card)],
+    });
+  }
+
+  await sendNotification({ message: { game: event.body.game } });
 };
 
 export const handler = async (event) => {
-  console.log('got event:', JSON.stringify(event));
+  console.log("got event:", JSON.stringify(event));
   if (event.body) {
-    const {redealOnly = false} = event.query || {};
+    const { redealOnly = false } = event.query || {};
     return doNextRound(event, redealOnly);
   }
   if (event.Records) {
-    return Promise.all(event.Records.map(({body}) => doNextRound({body: JSON.parse(body)})));
+    return Promise.all(
+      event.Records.map(({ Sns = {} }) =>
+        doNextRound({ body: JSON.parse(Sns.Message || "") })
+      )
+    );
   }
 };

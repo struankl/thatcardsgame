@@ -4,13 +4,14 @@ import {
   isCzar as isCzarSelector,
 } from '../../store/game-state/gameStateSelectors';
 import Card from '../card';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import { selectWinner } from '../../store/local-state/localActions';
 import { winningCardSelector } from '../../store/local-state/localStateSelectors';
 import { sendWinner } from '../../store/game-state';
 import { createUseStyles, useTheme } from 'react-jss';
 import { ICard } from '../../store/game-state/gameStateReducers';
 import { selectors } from '../../store';
+import {actions as toastrActions} from "react-redux-toastr";
 
 const useStyles = createUseStyles({
   card: {
@@ -72,6 +73,24 @@ export const JudgeCards: React.FC<{}> = () => {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (isJudging && !winningCard) {
+      dispatch(toastrActions.add({
+        type: 'success',
+        title: `Do your Czar's duty`,
+        position: 'bottom-right', // This will override the global props position.
+        message: 'Select the winning card',
+        options: {
+          timeOut: 0,
+        },
+        id: 'be-a-czar'
+      }))
+      return () => {
+        dispatch(toastrActions.remove('be-a-czar'));
+      }
+    }
+  }, [isJudging, winningCard, dispatch]);
 
   return (
     <div className={classes['played-area']}>

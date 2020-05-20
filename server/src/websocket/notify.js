@@ -1,11 +1,11 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import AWS from 'aws-sdk';
 import { executeQuery } from '../utils/database';
-import {GAME_STATE} from '../constants';
+import {GAME_STATE, PLAYERS} from '../constants';
 
 const apigwManagementApi = new AWS.ApiGatewayManagementApi({
   apiVersion: '2018-11-29',
-  endpoint: '2grm03xuhe.execute-api.eu-west-2.amazonaws.com/dev',
+  endpoint: process.env.WEBSOCKET_ENDPOINT,
 });
 
 export const doNotify = async (message) => {
@@ -69,6 +69,7 @@ where g.id = $1`,
                    p.uuid,
                    r.cards as "playedCards",
                    case 
+                        when p.id = ${PLAYERS.RANDO.id} then true
                         when w.connection_id is null then false
                         else true
                    end as "isActive"
