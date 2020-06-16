@@ -99,7 +99,8 @@ const doNextRound = async (event, redealOnly = false) => {
                 round              = round + $4,
                 czar               = coalesce($5, czar),
                 round_end          = null,
-                last_round_start   = now()
+                last_round_start   = now(),
+                game_start         = coalesce(game_start, now())
             where id = $3
             returning round`,
     params: [

@@ -8,8 +8,7 @@ import clsx from 'clsx';
 
 const useStyles = createUseStyles({
   player: {
-    display: 'flex',
-    justifyContent: 'space-between',
+    display: 'contents',
     '&:before': {
       content: "'\\2b55'",
     },
@@ -28,14 +27,19 @@ const useStyles = createUseStyles({
     flexGrow: 1,
     textAlign: 'left',
     whiteSpace: 'nowrap',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   'cards-icon': {
     fill: 'white',
     width: 20,
     height: 20,
     margin: [[0, 5]],
+    gridColumn: 3,
   },
+  score: {
+    gridColumn: 4
+  }
 });
 
 export const Players: React.FC<{}> = () => {
@@ -43,30 +47,30 @@ export const Players: React.FC<{}> = () => {
   const classes = useStyles({ theme });
   const players = useSelector(selectors.players);
   return (
-    <>
-      {players &&
+      <> {
+        players &&
         players.map(
-          (
-            {
-              name: playerName,
-              score,
-              isCzar: playerIsCzar,
-              hasPlayed,
-              isActive,
-            },
-            index
-          ) => (
-            <div
-              key={`${playerName}-${index}`}
-              className={clsx(classes.player, { active: isActive })}
-            >
-              <span className={classes['player-name']}>{playerName}</span>
-              {playerIsCzar && <Crown className={classes['cards-icon']} />}
-              {hasPlayed && <Cards className={classes['cards-icon']} />}
-              <span>{score}</span>
-            </div>
-          )
-        )}
-    </>
-  );
+            (
+                {
+                  name: playerName,
+                  score,
+                  isCzar: playerIsCzar,
+                  hasPlayed,
+                  isActive,
+                },
+                index
+            ) => (
+                <div
+                    key={`${playerName}-${index}`}
+                    className={clsx(classes.player, { active: isActive })}
+                >
+                  <span className={classes['player-name']}>{playerName}</span>
+                  {playerIsCzar && <Crown className={classes['cards-icon']} />}
+                  {hasPlayed && <Cards className={classes['cards-icon']} />}
+                  <span className={classes.score}>{score}</span>
+                </div>
+            )
+        )
+      }
+      </>);
 };

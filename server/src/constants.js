@@ -4,6 +4,7 @@ export const GAME_STATE = {
   PLAYED: 'played',
   JUDGING: 'judging',
   JUDGED: 'judged',
+  ENDED: 'ended'
 };
 
 export const NUMBER_OF_CARDS = 10;

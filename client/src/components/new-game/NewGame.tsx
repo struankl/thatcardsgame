@@ -17,14 +17,26 @@ import {
 import { createUseStyles, useTheme } from 'react-jss';
 import { ReactComponent as Cards } from '../../icons/cards.svg';
 import { ReactComponent as Crown } from '../../icons/crown.svg';
-import clsx from 'clsx';
+import { Name } from './tabs/Name';
+import { CardsSets } from './tabs/Cardsets';
+import { HouseRules } from './tabs/HouseRules';
+import { EndState } from './tabs/EndState';
+import { actions as toastrActions } from 'react-redux-toastr';
 
 const useStyles = createUseStyles({
+  form: {
+    maxWidth: '900px',
+    '& > button': {
+      margin: 5,
+    },
+  },
+  subheading: {
+    display: 'inline-block',
+    marginBottom: 10,
+  },
   cardsets: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    width: '100vw',
-    maxWidth: '900px',
     margin: 'auto',
   },
   'cardset-name': {
@@ -65,29 +77,50 @@ const useStyles = createUseStyles({
   },
   'rules-panel': {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'
+    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+    gap: '10px',
   },
   rule: {
-    maxWidth: '250px'
+    border: '1px solid white',
+    borderRadius: 7,
+    padding: 7,
+    backgroundColor: 'rgba(255,255,255, 0.2)',
   },
   'rule-name': {
     display: 'inline-block',
     textDecoration: 'underline',
-    marginBottom: 5
+    marginBottom: 5,
   },
   'rule-body': {
     display: 'flex',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   'rule-description': {
     display: 'inline-block',
-    textAlign: 'left'
-  }
+    textAlign: 'left',
+  },
+  'end-state-panel': {
+    display: 'flex',
+    flexDirection: 'column',
+    width: 400,
+    margin: 'auto',
+    maxWidth: 'calc(100vw - 10px)',
+    '& label': {
+      display: 'flex',
+      justifyContent: 'space-between',
+      margin: 5,
+    },
+    '& input[type="number"]': {
+      width: 50,
+    },
+  },
 });
 
 enum TABS {
+  NAME = 'Name',
   STOCK_CARDS = 'Stock Cards',
   RULES = 'House Rules',
+  END_STATE = 'End State',
 }
 
 export const NewGame: React.FC<{}> = () => {
@@ -101,8 +134,17 @@ export const NewGame: React.FC<{}> = () => {
   const [gameNames, setGameNames] = useState<{ id: string; name: string }[]>(
     []
   );
+  const [endState, setEndState] = useState({
+    duration: 0,
+    rounds: 0,
+    score: 0,
+  });
 
-  const [selectedTab, setSelectedTab] = useState(TABS.STOCK_CARDS);
+  const [selectedTab, setSelectedTab] = useState(TABS.NAME);
+
+  let tabValues = Object.values(TABS);
+  const isFirstTab = selectedTab === tabValues[0];
+  const isLastTab = selectedTab === tabValues[tabValues.length - 1];
 
   const games = useMemo<IGame[]>(
     () =>
@@ -123,9 +165,12 @@ export const NewGame: React.FC<{}> = () => {
     );
   }, [games]);
 
-  const onCreateGame = useCallback(
-    (e) => {
+  const onCreateGame = (e: React.FormEvent) => {
       e.preventDefault();
+      if (!isLastTab) {
+        gotoNextTab();
+        return;
+      }
       setButtonClicked(true);
       if (!name || !cardsets.some(({ selected }) => selected)) {
         return;
@@ -136,14 +181,11 @@ export const NewGame: React.FC<{}> = () => {
           cardsets: cardsets
             .filter(({ selected }) => selected)
             .map(({ id }) => id),
-          rules: rules
-              .filter(({selected}) => selected)
-              .map(({id}) => id)
+          rules: rules.filter(({ selected }) => selected).map(({ id }) => id),
+          endState
         })
       );
-    },
-    [dispatch, cardsets, name, rules]
-  );
+    };
 
   const onChooseGame = useCallback(
     (gameId: string) => {
@@ -160,28 +202,43 @@ export const NewGame: React.FC<{}> = () => {
 
   const [createNew, setCreateNew] = useState(false);
 
-  const selectCardSet = (id: number) =>
-    setCardsets((current) =>
-      current.map((cs) =>
-        cs.id === id ? { ...cs, selected: !cs.selected } : cs
-      )
-    );
+  const gotoNextTab = () => {
+    let result;
+    switch (selectedTab) {
+      case TABS.NAME:
+        result = {
+          valid: Boolean(name),
+          message: 'Please choose a name for the game',
+        };
+        break;
+      case TABS.STOCK_CARDS:
+        result = {
+          valid: cardsets.filter(({ selected }) => selected).length > 0,
+          message: 'Please select at least one cardset',
+        };
+        break;
+      default:
+        result = {
+          valid: true,
+          message: '',
+        };
+    }
 
-  const selectRule = (id: number) =>
-    setRules((current) =>
-      current.map((rule) =>
-        rule.id === id ? { ...rule, selected: !rule.selected } : rule
-      )
+    dispatch(toastrActions.remove('setup-error'));
+    if (!result.valid) {
+      dispatch(
+        toastrActions.add({
+          id: 'setup-error',
+          title: 'Error',
+          message: result.message,
+          type: 'error',
+        })
+      );
+    }
+    return setSelectedTab(
+      result.valid ? tabValues[tabValues.indexOf(selectedTab) + 1] : selectedTab
     );
-
-  const onSelectAll = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setCardsets((current) => {
-      const allSet = current.every((cs) => cs.selected);
-      return current.map((cs) => ({ ...cs, selected: !allSet }));
-    });
   };
-
   return (
     <div>
       {games.length > 0 && !createNew && (
@@ -205,67 +262,48 @@ export const NewGame: React.FC<{}> = () => {
         </div>
       )}
       {(games.length < 1 || createNew) && (
-        <form onSubmit={onCreateGame}>
-          <div>
-            {Object.values(TABS).map((tab) => (
-              <span
-                className={clsx(classes.tab, { selected: tab === selectedTab })}
-                onClick={() => setSelectedTab(tab)}
-              >
-                {tab}
-              </span>
-            ))}
-          </div>
+        <form className={classes.form} onSubmit={onCreateGame}>
+          {selectedTab === TABS.NAME && (
+            <Name name={name} setName={setName} classes={classes} />
+          )}
           {selectedTab === TABS.STOCK_CARDS && (
-            <div>
-              <h1>Select cardsets for this game</h1>
-              <button type="button" onClick={onSelectAll}>
-                select all
-              </button>
-              <div className={classes.cardsets}>
-                {cardsets.map((cs) => (
-                  <label key={cs.id}>
-                    <span className={classes['cardset-name']}>{cs.name}</span>
-                    <input
-                      type="checkbox"
-                      checked={cs.selected}
-                      onChange={() => selectCardSet(cs.id)}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
+            <CardsSets
+              cardsets={cardsets}
+              setCardsets={setCardsets}
+              classes={classes}
+            />
           )}
           {selectedTab === TABS.RULES && (
-              <div>
-                <h1>Select house rules for this game</h1>
-                <div className={classes['rules-panel']}>
-                  {rules.map(r => <label key={r.id} className={classes.rule}>
-                    <span className={classes['rule-name']}>{r.name}</span>
-                    <div className={classes['rule-body']}>
-                      <span className={classes['rule-description']}>{r.description}</span>
-                      <input type="checkbox" checked={r.selected} onChange={() => selectRule(r.id)}/>
-                    </div>
-                  </label>)}
-                </div>
-              </div>
-                )}
-          <div>
-            <label>
-              Game Name:
-              <input
-                className={classes['game-name']}
-                type="text"
-                placeholder="E.G. Thursday night game with Nan & Pop's"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <button type="submit" disabled={buttonClicked}>
-            Create New Game
+            <HouseRules rules={rules} setRules={setRules} classes={classes} />
+          )}
+          {selectedTab === TABS.END_STATE && (
+            <EndState
+              endStates={endState}
+              setEndStates={setEndState}
+              classes={classes}
+            />
+          )}
+          <button
+            type="button"
+            disabled={isFirstTab}
+            onClick={() =>
+              setSelectedTab(
+                (currentTab) => tabValues[tabValues.indexOf(currentTab) - 1]
+              )
+            }
+          >
+            Previous
           </button>
+          {!isLastTab && (
+            <button type="button" onClick={gotoNextTab}>
+              Next
+            </button>
+          )}
+          {isLastTab && (
+            <button type="submit" disabled={buttonClicked}>
+              Create New Game
+            </button>
+          )}
         </form>
       )}
       <hr />

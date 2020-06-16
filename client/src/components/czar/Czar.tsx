@@ -26,7 +26,7 @@ export const Czar: React.FC<{}> = () => {
   const blackCard = useSelector(selectors.blackCard) || { id: null };
   const [buttonClicked, setButtonClicked] = useState(false);
   const playerHasPlayed = useMemo<boolean>(
-    () => Boolean(players.find(({ hasPlayed }) => hasPlayed)),
+    () => Boolean(players.find(({ hasPlayed, name }) => name !== 'Rando Cardrissian' && hasPlayed)),
     [players]
   );
   const dispatch = useDispatch();

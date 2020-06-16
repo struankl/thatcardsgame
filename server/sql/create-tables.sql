@@ -123,4 +123,8 @@ insert into player (id, name) values (-1, 'Rando Cardrissian');
 
 alter table game
 add column last_round_start timestamp default now();
+
+alter table game
+add column game_start timestamp,
+add column end_state jsonb default '{}';
 --------------------------------------------

@@ -6,6 +6,7 @@ import { createUseStyles, useTheme } from 'react-jss';
 import { useDrop } from 'react-dnd';
 import { confirmCards } from '../../store/game-state';
 import clsx from 'clsx';
+import {unplayCard} from "../../store/local-state/localActions";
 
 const useStyles = createUseStyles({
   container: {
@@ -65,6 +66,8 @@ export const CardsPlayed: FC<ICardsPlayedProps> = ({
     dispatch(confirmCards());
   }, [dispatch]);
 
+  const onReset = () => playedCards.forEach((id) => onUnplayed(id));
+
   return (
     <div className={classes.container}>
       <div className={classes.cardsHolder}>
@@ -82,20 +85,33 @@ export const CardsPlayed: FC<ICardsPlayedProps> = ({
                       onClick={() => onUnplayed(whiteCard.id)}
                       className={classes.card}
                       data-cardid={whiteCard.id}
+                      title={gameState === 'playing' ? 'click to unplay card' : undefined}
                     />
                   )
               )}
         </div>
-        <button
-          onClick={onConfirmSelection}
-          className={clsx({
-            [classes.hidden]:
-              gameState !== 'playing' || playedCards.length !== blackCard?.pick,
-          })}
-          disabled={hasPlayed}
-        >
-          Confirm Selection
-        </button>
+        <div>
+          <button
+            onClick={onConfirmSelection}
+            className={clsx({
+              [classes.hidden]:
+                gameState !== 'playing' || playedCards.length !== blackCard?.pick,
+            })}
+            disabled={hasPlayed}
+          >
+            Confirm Selection
+          </button>
+          <button
+            onClick={onReset}
+            className={clsx({
+              [classes.hidden]:
+                gameState !== 'playing' || !playedCards.length,
+            })}
+            disabled={hasPlayed}
+          >
+            Reset
+          </button>
+        </div>
       </div>
     </div>
   );

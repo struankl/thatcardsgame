@@ -26,7 +26,7 @@ export interface IGameState {
     | 'played'
     | 'judging'
     | 'judged'
-    | 'complete';
+    | 'ended';
   players: IPlayer[];
   playedCards?: ICard[][];
   blackCard?: IBlackCard;

@@ -1,18 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createUseStyles, useTheme } from 'react-jss';
 import { useDrop } from 'react-dnd';
+import { useMediaQuery } from 'react-responsive';
 import Card from '../card';
 
 import { useDispatch, useSelector } from 'react-redux';
-import { serverMessage } from '../../store/game-state';
 import { selectors } from '../../store';
 import {
   playCard as playCardAction,
   unplayCard as unplayCardAction,
 } from '../../store/local-state/localActions';
-import { WEBSOCKET_URL } from '../../constants';
 import { CardsPlayed } from '../cards-played/CardsPlayed';
-import { Waiting } from '../waiting';
 import { Czar } from '../czar';
 import { Players } from '../players';
 import { JudgeCards } from '../judge-cards';
@@ -48,11 +46,27 @@ const useStyles = createUseStyles({
     flexGrow: 1,
   },
   players: {
-    display: 'flex',
-    flexDirection: 'column',
+    display: 'grid',
+    gridTemplateColumns: 'max-content 1fr max-content max-content',
+    gridAutoRows: 'max-content',
     margin: [[5, 15]],
     width: 150,
     maxWidth: 'calc(50vw - 42px)',
+    overflow: 'hidden',
+    transition: 'width 0.5s ease, margin 0.5s ease, padding 0.5s ease',
+  },
+  'small-players': {
+    position: 'absolute',
+    zIndex: 100,
+    backgroundColor: 'black',
+    padding: 10,
+    left: -16,
+    top: -4,
+  },
+  'hidden-players': {
+    width: 0,
+    margin: 0,
+    padding: 0,
   },
   hand: {
     display: 'flex',
@@ -60,6 +74,7 @@ const useStyles = createUseStyles({
     justifyContent: 'space-evenly',
     overflow: 'auto',
     minHeight: 170,
+    position: 'relative',
   },
   'white-card': {
     animation: '$fadeIn 0.25s',
@@ -89,45 +104,17 @@ const useStyles = createUseStyles({
   },
 });
 
-const createWS = (
-  ref: any,
-  playerId: string,
-  gameId: string,
-  onMessage: (message: any) => void
-) => {
-  if (ref.current) {
-    ref.current.onclose = () => {};
-    ref.current.close();
-  }
-  const ws = new WebSocket(WEBSOCKET_URL);
-  ws.onopen = () => {
-    console.log('websocket open');
-    ws.send(JSON.stringify({ player: playerId, game: gameId }));
-  };
-  ws.onclose = () => {
-    console.log('ws closed reopening');
-    createWS(ref, playerId, gameId, onMessage);
-  };
-  ws.onmessage = ({ data }) => {
-    const gameState = JSON.parse(data);
-    console.log('got message', gameState);
-    onMessage({ gameState });
-  };
-  ref.current = ws;
-};
-
 export const PlayBoard = () => {
   const theme = useTheme();
   const classes = useStyles({ theme });
   const playedCards = useSelector(selectors.playedCards);
   const gameState = useSelector(selectors.gameState);
   const whiteCardsSelected = useSelector(selectors.whiteCards) || [];
-  const playerId = useSelector(selectors.playerId);
-  const gameId = useSelector(selectors.gameId);
   const isCzar = useSelector(selectors.isCzar);
   const isPlaying = gameState === 'playing';
   const hasPlayed = gameState === 'played';
   const blackCard = useSelector(selectors.blackCard);
+  const cardsToJudge = useSelector(selectors.cardsToJudge) || [];
   const pick = blackCard ? blackCard.pick : 0;
   const canPlay = (id: string) =>
     !isCzar &&
@@ -135,13 +122,25 @@ export const PlayBoard = () => {
     isPlaying &&
     playedCards.length < pick;
   const dispatch = useDispatch();
-
-  const websocketRef = useRef();
   const [whiteCards, setWhiteCards] = useState<ICard[]>([]);
-
+  const isLarge = useMediaQuery({ query: '(min-width: 574px)' });
+  const judgingWidth = 192 * (cardsToJudge.length + 2);
+  const isLargeEnoughForJudging = useMediaQuery({query: `(min-width: ${judgingWidth}px)`});
+  const hideLarge = gameState === 'judging' && !isLargeEnoughForJudging;
   const [hiddenClasses, setHiddenClasses] = useState<{ [x: string]: string }>(
     {}
   );
+
+  const [hideSmallPlayers, setHideSmallPlayers] = useState(false);
+
+  useEffect(() => {
+    if (gameState === 'playing') {
+      setTimeout(() => setHideSmallPlayers(true), 5000);
+    }
+    if (gameState === 'judging') {
+      setHideSmallPlayers(false);
+    }
+  }, [gameState]);
 
   useEffect(() => {
     if (isEqual(whiteCards, whiteCardsSelected)) {
@@ -208,15 +207,6 @@ export const PlayBoard = () => {
     return () => document.removeEventListener('animationend', animationEnd);
   }, [animationEnd]);
 
-  useEffect(() => {
-    if (playerId && gameId) {
-      const onMessage = (message: any) => {
-        dispatch(serverMessage(message));
-      };
-      createWS(websocketRef, playerId, gameId, onMessage);
-    }
-  }, [playerId, gameId, dispatch]);
-
   const playCard = (id: string) => {
     if (canPlay(id)) {
       dispatch(playCardAction(id));
@@ -246,14 +236,18 @@ export const PlayBoard = () => {
     <>
       <div className={classes.main}>
         <div className={classes.playingArea}>
+          {isLarge && (
+            <div
+              className={clsx(classes.players, {
+                [classes['hidden-players']]: hideLarge,
+              })}
+            >
+              <Players />
+            </div>
+          )}
           <div>
             {blackCard && (
               <Card isBlack message={blackCard.message} id={blackCard.id} />
-            )}
-            {gameState !== 'waiting' && (
-              <div className={classes.players}>
-                <Players />
-              </div>
             )}
           </div>
           {(isPlaying || hasPlayed) && !isCzar && (
@@ -264,13 +258,20 @@ export const PlayBoard = () => {
             />
           )}
           {isPlaying && isCzar && <Czar />}
-          {gameState === 'waiting' && <Waiting />}
           {['judging', 'judged'].includes(gameState) && <JudgeCards />}
         </div>
         <hr className={classes.hr} />
         <div className={classes.hand} ref={unPlayDrop}>
-          {gameState !== 'waiting' &&
-            whiteCards &&
+          {!isLarge && (
+            <div
+              className={clsx(classes.players, classes['small-players'], {
+                [classes['hidden-players']]: hideSmallPlayers
+              })}
+            >
+              <Players />
+            </div>
+          )}
+          {whiteCards &&
             whiteCards.map(({ message, id }) => (
               <Card
                 className={clsx(classes['white-card'], hiddenClasses[id], {

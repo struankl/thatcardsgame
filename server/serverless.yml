@@ -39,6 +39,7 @@ custom:
 #    identitySource: method.request.header.Authorization
   NOTIFY_TOPIC: '${self:service}-${self:provider.stage}-notify-players'
   NEXT_ROUND_TOPIC: '${self:service}-${self:provider.stage}-next-round'
+  END_GAME_TOPIC: '${self:service}-${self:provider.stage}-end-game'
 
   websocketsApiName: cah-websockets-api
   webpack:
@@ -90,6 +91,12 @@ provider:
         - - 'arn:aws:sns:${self:provider.region}:'
           - 'Ref': 'AWS::AccountId'
           - ':${self:custom.NEXT_ROUND_TOPIC}'
+    END_GAME_TOPIC:
+      Fn::Join:
+        - ""
+        - - 'arn:aws:sns:${self:provider.region}:'
+          - 'Ref': 'AWS::AccountId'
+          - ':${self:custom.END_GAME_TOPIC}'
 #  websocketsApiName: amma-websockets-api
 
 functions:
@@ -133,7 +140,10 @@ functions:
             origin: '*'
           integration: lambda
       - sns: ${self:custom.NEXT_ROUND_TOPIC}
-
+  endGame:
+    handler: src/endGame/index.handler
+    events:
+      - sns: ${self:custom.END_GAME_TOPIC}
   playCards:
     handler: src/playCards/playCards.handler
     events:

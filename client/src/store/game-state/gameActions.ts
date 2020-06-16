@@ -20,15 +20,18 @@ export const createGame = ({
   cardsets,
   rules,
   name,
+  endState
 }: {
   cardsets: number[];
   rules: number[];
   name: string;
+  endState: any
 }) => ({
   type: GameActions.CREATE_GAME as typeof GameActions.CREATE_GAME,
   cardsets,
   rules,
   name,
+  endState
 });
 
 export const startGame = () => ({

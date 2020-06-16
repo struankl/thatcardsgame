@@ -207,7 +207,7 @@ export const gameStateChangeEffect: Epic<
           }
         }
         if (currentGameState.roundEndTime !== gameState?.roundEndTime) {
-          actions.push(of(toastrActions.remove('round-end-warning')));
+          // actions.push(of(toastrActions.remove('round-end-warning')));
           if (gameState?.roundEndTime) {
             actions.push(
               of(

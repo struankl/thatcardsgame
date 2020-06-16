@@ -21,15 +21,17 @@ interface IStartGameResponse {
 export const createGameService = async ({
   name,
   cardsets,
-    rules
+  rules,
+  endState,
 }: {
   name: string;
   cardsets: number[];
   rules: number[];
+  endState: any;
 }): Promise<IStartGameResponse> => {
   const response = await fetch(`${SERVER_URL}/game`, {
     method: 'POST',
-    body: JSON.stringify({ name, cardsets, rules }),
+    body: JSON.stringify({ name, cardsets, rules, endState }),
     headers: {
       'Content-Type': 'application/json',
     },
@@ -131,7 +133,10 @@ export const sendEndRoundService = async ({
   });
 };
 
-export const getCardsetsService = async (): Promise<{cardsets: ICardSet[], rules: IRule[]}> => {
+export const getCardsetsService = async (): Promise<{
+  cardsets: ICardSet[];
+  rules: IRule[];
+}> => {
   const response = await fetch(`${SERVER_URL}/cardsets`, {
     method: 'GET',
     headers: {

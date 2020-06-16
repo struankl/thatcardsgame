@@ -60,7 +60,7 @@ export const JudgeCards: React.FC<{}> = () => {
   function mapcards(cards: ICard[], index: number) {
     return (
       <div>
-        {cards.map(({ id, message }) => (
+        {cards.map(({ id, message }, cardIndex, array) => (
           <Card
             key={id}
             id={id}
@@ -68,6 +68,7 @@ export const JudgeCards: React.FC<{}> = () => {
             onClick={isJudging ? () => winner(index) : () => {}}
             selected={isJudging && index === winningCard}
             className={classes.card}
+            suppressTag={cardIndex < array.length - 1}
           />
         ))}
       </div>
